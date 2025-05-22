@@ -2,7 +2,6 @@ package main
 
 import (
 	"database/sql"
-	"fmt"
 	"log"
 	"net/http"
 	"strconv"
@@ -116,48 +115,6 @@ func addToCartHandler(db *Database) gin.HandlerFunc {
 			itemy = strings.Split(koszyk, ",")
 		}
 
-		// STEP 3: Add new product ID to the cart
-		itemy = append(itemy, productID)
-
-		// STEP 4: Save the updated cart back into a cookie (1 hour expiration)
-		http.SetCookie(c.Writer, &http.Cookie{
-			Name:     "koszyk",
-			Value:    strings.Join(itemy, ","),
-			Path:     "/",
-			MaxAge:   3600, // in seconds
-			HttpOnly: true,
-			SameSite: http.SameSiteLaxMode,
-		})
-
-		// STEP 5: Build dynamic SQL to fetch product details by ID
-		placeholders := strings.Repeat("?,", len(itemy))
-		placeholders = strings.TrimRight(placeholders, ",")
-
-		query := fmt.Sprintf("SELECT id, nazwa, opis, cena, zdj, kategoria FROM produkty WHERE id IN (%s)", placeholders)
-		args := make([]interface{}, len(itemy))
-		for i, v := range itemy {
-			args[i] = v
-		}
-
-		// STEP 6: Execute the SQL query and return products as JSON
-		rows, err := db.Query(query, args...)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Database failed"})
-			return
-		}
-		defer rows.Close()
-
-		var products []Product
-		for rows.Next() {
-			var p Product
-			if err := rows.Scan(&p.ID, &p.Nazwa, &p.Opis, &p.Cena, &p.Zdjecie, &p.Kategoria); err != nil {
-				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to scan"})
-				return
-			}
-			products = append(products, p)
-		}
-
-		c.JSON(http.StatusOK, products)
 	}
 }
 
