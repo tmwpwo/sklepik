@@ -65,6 +65,36 @@ func getProdukty(db *Database) gin.HandlerFunc {
 	}
 }
 
+func getProduktyByKategoria(db *Database) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		kategoria := c.Param("kategoria")
+
+		rows, err := db.Query("SELECT id, nazwa, opis, cena, zdj, kategoria FROM produkty WHERE kategoria = ?", kategoria)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Database query failed"})
+			return
+		}
+		defer rows.Close()
+
+		var products []Product
+		for rows.Next() {
+			var p Product
+			if err := rows.Scan(&p.ID, &p.Nazwa, &p.Opis, &p.Cena, &p.Zdjecie, &p.Kategoria); err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "nie udalo sie sfetchowac"})
+				return
+			}
+			products = append(products, p)
+		}
+
+		if len(products) == 0 {
+			c.JSON(http.StatusNotFound, gin.H{"error": "No products found for this category"})
+			return
+		}
+
+		c.JSON(http.StatusOK, products)
+	}
+}
+
 func MainHandler(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"message": "pong",
@@ -80,6 +110,6 @@ func main() {
 	r := gin.Default()
 	r.GET("/ping", MainHandler)
 	r.GET("/produkty/:id", getProdukty(db))
-	r.GET("/kategorie")
+	r.GET("/kategoria/:kategoria", getProduktyByKategoria(db))
 	r.Run()
 }
