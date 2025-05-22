@@ -45,25 +45,23 @@ func initDB() (*Database, error) {
 
 func getProdukty(db *Database) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		rows, err := db.Query("SELECT id, nazwa, opis, cena, zdj, kategoria FROM produkty")
+		id := c.Param("id")
+
+		query := "SELECT id, nazwa, opis, cena, zdj, kategoria FROM produkty WHERE id = ?"
+		row := db.QueryRow(query, id)
+
+		var p Product
+		err := row.Scan(&p.ID, &p.Nazwa, &p.Opis, &p.Cena, &p.Zdjecie, &p.Kategoria)
 		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Database query failed"})
+			if err == sql.ErrNoRows {
+				c.JSON(http.StatusNotFound, gin.H{"error": "niema"})
+			} else {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "nie udalo sie sfetchowac"})
+			}
 			return
 		}
-		defer rows.Close()
 
-		var products []Product
-		for rows.Next() {
-			var p Product
-			err := rows.Scan(&p.ID, &p.Nazwa, &p.Opis, &p.Cena, &p.Zdjecie, &p.Kategoria)
-			if err != nil {
-				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to scan row"})
-				return
-			}
-			products = append(products, p)
-		}
-
-		c.JSON(http.StatusOK, products)
+		c.JSON(http.StatusOK, p)
 	}
 }
 
@@ -76,11 +74,12 @@ func MainHandler(c *gin.Context) {
 func main() {
 	db, err := initDB()
 	if err != nil {
-		log.Fatalf("Failed to connect to DB: %v", err)
+		log.Fatalf("Failed connect: %v", err)
 	}
 	defer db.Close()
 	r := gin.Default()
 	r.GET("/ping", MainHandler)
-	r.GET("/produkty", getProdukty(db))
+	r.GET("/produkty/:id", getProdukty(db))
+	r.GET("/kategorie")
 	r.Run()
 }
