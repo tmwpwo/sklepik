@@ -2,6 +2,7 @@ package main
 
 import (
 	"database/sql"
+	"fmt"
 	"log"
 	"net/http"
 	"strconv"
@@ -114,6 +115,45 @@ func addToCartHandler(db *Database) gin.HandlerFunc {
 		if err == nil && koszyk != "" {
 			itemy = strings.Split(koszyk, ",")
 		}
+
+		itemy = append(itemy, productID)
+
+		http.SetCookie(c.Writer, &http.Cookie{
+			Name:     "koszyk",
+			Value:    strings.Join(itemy, ","),
+			Path:     "/",
+			MaxAge:   3600,
+			HttpOnly: true,
+			SameSite: http.SameSiteLaxMode,
+		})
+
+		placeholders := strings.Repeat("?,", len(itemy))
+		placeholders = strings.TrimRight(placeholders, ",")
+
+		query := fmt.Sprintf("SELECT id, nazwa, opis, cena, zdj, kategoria FROM produkty WHERE id IN (%s)", placeholders)
+		args := make([]interface{}, len(itemy))
+		for i, v := range itemy {
+			args[i] = v
+		}
+
+		rows, err := db.Query(query, args...)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Database failed"})
+			return
+		}
+		defer rows.Close()
+
+		var products []Product
+		for rows.Next() {
+			var p Product
+			if err := rows.Scan(&p.ID, &p.Nazwa, &p.Opis, &p.Cena, &p.Zdjecie, &p.Kategoria); err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to scan"})
+				return
+			}
+			products = append(products, p)
+		}
+
+		c.JSON(http.StatusOK, products)
 
 	}
 }
