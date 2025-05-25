@@ -166,7 +166,7 @@ func addToCartHandler() gin.HandlerFunc {
 			ID       int `json:"id"`
 			Quantity int `json:"quantity"`
 		}
-		if err := c.ShouldBindJSON(&req); err != nil || req.Quantity < 1 {
+		if err := c.ShouldBindJSON(&req); err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request"})
 			return
 		}
