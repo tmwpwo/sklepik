@@ -214,7 +214,7 @@ func main() {
 	}
 	defer db.Close()
 	r := gin.Default()
-	r.Use(cors.Default())
+	r.Use(cors.New(cors.Config{AllowCredentials: true}))
 	r.GET("/ping", MainHandler)
 	r.GET("/produkty/:id", getProdukty(db))
 	r.GET("/kategoria/:kategoria", getProduktyByKategoria(db))
