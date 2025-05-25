@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 
@@ -99,62 +100,104 @@ func getProduktyByKategoria(db *Database) gin.HandlerFunc {
 	}
 }
 
-func addToCartHandler(db *Database) gin.HandlerFunc {
+func addToCartHandler() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var req struct {
-			ProductID int `json:"product_id"`
+			ID       int `json:"id"`
+			Quantity int `json:"quantity"`
 		}
-		if err := c.ShouldBindJSON(&req); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "zly request"})
+		if err := c.ShouldBindJSON(&req); err != nil || req.Quantity < 1 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request"})
 			return
 		}
-		productID := strconv.Itoa(req.ProductID)
-
-		koszyk, err := c.Cookie("koszyk")
-		var itemy []string
-		if err == nil && koszyk != "" {
-			itemy = strings.Split(koszyk, ",")
+		cart := make(map[int]int)
+		if cookie, err := c.Request.Cookie("koszyk"); err == nil && cookie.Value != "" {
+			data, _ := url.QueryUnescape(cookie.Value)
+			pairs := strings.Split(data, ",")
+			for _, pair := range pairs {
+				parts := strings.Split(pair, ":")
+				if len(parts) != 2 {
+					continue
+				}
+				id, _ := strconv.Atoi(parts[0])
+				qty, _ := strconv.Atoi(parts[1])
+				if id > 0 && qty > 0 {
+					cart[id] = qty
+				}
+			}
 		}
-
-		itemy = append(itemy, productID)
+		cart[req.ID] += req.Quantity
+		var cookieParts []string
+		for id, qty := range cart {
+			cookieParts = append(cookieParts, fmt.Sprintf("%d:%d", id, qty))
+		}
+		cookieValue := url.QueryEscape(strings.Join(cookieParts, ","))
 
 		http.SetCookie(c.Writer, &http.Cookie{
 			Name:     "koszyk",
-			Value:    strings.Join(itemy, ","),
+			Value:    cookieValue,
 			Path:     "/",
 			MaxAge:   3600,
 			HttpOnly: true,
 			SameSite: http.SameSiteLaxMode,
 		})
 
-		placeholders := strings.Repeat("?,", len(itemy))
-		placeholders = strings.TrimRight(placeholders, ",")
+		c.JSON(http.StatusOK, gin.H{"message": "dodano"})
+	}
+}
 
-		query := fmt.Sprintf("SELECT id, nazwa, opis, cena, zdj, kategoria FROM produkty WHERE id IN (%s)", placeholders)
-		args := make([]interface{}, len(itemy))
-		for i, v := range itemy {
-			args[i] = v
+func viewCartHandler(db *Database) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		cart := make(map[int]int)
+		if cookie, err := c.Request.Cookie("koszyk"); err == nil && cookie.Value != "" {
+			data, _ := url.QueryUnescape(cookie.Value)
+			pairs := strings.Split(data, ",")
+			for _, pair := range pairs {
+				parts := strings.Split(pair, ":")
+				if len(parts) != 2 {
+					continue
+				}
+				id, _ := strconv.Atoi(parts[0])
+				qty, _ := strconv.Atoi(parts[1])
+				if id > 0 && qty > 0 {
+					cart[id] = qty
+				}
+			}
 		}
+
+		if len(cart) == 0 {
+			c.JSON(http.StatusOK, gin.H{"koszyk": []any{}})
+			return
+		}
+
+		var ids []string
+		var args []any
+		for id := range cart {
+			ids = append(ids, "?")
+			args = append(args, id)
+		}
+		query := fmt.Sprintf("SELECT id, nazwa, opis, cena, zdj, kategoria FROM produkty WHERE id IN (%s)", strings.Join(ids, ","))
 
 		rows, err := db.Query(query, args...)
 		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Database failed"})
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Query failed"})
 			return
 		}
 		defer rows.Close()
 
-		var products []Product
+		var response []map[string]any
 		for rows.Next() {
 			var p Product
 			if err := rows.Scan(&p.ID, &p.Nazwa, &p.Opis, &p.Cena, &p.Zdjecie, &p.Kategoria); err != nil {
-				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to scan"})
-				return
+				continue
 			}
-			products = append(products, p)
+			response = append(response, gin.H{
+				"product":  p,
+				"quantity": cart[p.ID],
+			})
 		}
 
-		c.JSON(http.StatusOK, products)
-
+		c.JSON(http.StatusOK, gin.H{"koszyk": response})
 	}
 }
 
@@ -175,6 +218,7 @@ func main() {
 	r.GET("/ping", MainHandler)
 	r.GET("/produkty/:id", getProdukty(db))
 	r.GET("/kategoria/:kategoria", getProduktyByKategoria(db))
-	r.POST("/koszyk/dodaj", addToCartHandler(db))
+	r.POST("/koszyk", addToCartHandler())
+	r.GET("/koszyk", viewCartHandler(db))
 	r.Run()
 }
