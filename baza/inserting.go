@@ -42,7 +42,7 @@ func main() {
 	}
 	defer db.Close()
 
-	for i, product := range Products {
+	for i, product := range product {
 		if err := InsertProduct(db, product); err != nil {
 			log.Fatalf("nie dodalo %d: %v", i+1, err)
 		}

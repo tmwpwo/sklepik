@@ -184,7 +184,7 @@ func addToCartHandler() gin.HandlerFunc {
 				}
 				id, _ := strconv.Atoi(parts[0])
 				qty, _ := strconv.Atoi(parts[1])
-				if id > 0 && qty > 0 {
+				if id > 0 {
 					cart[id] = qty
 				}
 			}
