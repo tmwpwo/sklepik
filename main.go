@@ -263,7 +263,7 @@ func viewCartHandler(db *Database) gin.HandlerFunc {
 
 func MainHandler(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
-		"message": "pong",
+		"message": "5DjHs",
 	})
 }
 
@@ -282,7 +282,7 @@ func main() {
 		AllowHeaders:     []string{"Origin", "Content-Type", "Accept"},
 		AllowCredentials: true,
 	}))
-	r.GET("/ping", MainHandler)
+	r.GET("/clue", MainHandler)
 	r.GET("/produkty/:id", getProdukty(db))
 	r.GET("/kategoria/:kategoria", getProduktyByKategoria(db))
 	r.POST("/koszyk", addToCartHandler())
