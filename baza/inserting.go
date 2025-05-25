@@ -29,6 +29,12 @@ func InsertProduct(db *sql.DB, product Product_y) error {
 	return err
 }
 
+func DeleteProductByID(db *sql.DB, id int) error {
+	query := `DELETE FROM produkty WHERE id = ?;`
+	_, err := db.Exec(query, id)
+	return err
+}
+
 func main() {
 	db, err := OpenDB()
 	if err != nil {
@@ -36,17 +42,15 @@ func main() {
 	}
 	defer db.Close()
 
-	product := Product_y{
-		Nazwa:     "Ametyst",
-		Opis:      "zielony kamyk",
-		Cena:      30,
-		Zdjecie:   "/zdj/ametyst.jpg",
-		Kategoria: "kamienie",
+	for i, product := range Products {
+		if err := InsertProduct(db, product); err != nil {
+			log.Fatalf("nie dodalo %d: %v", i+1, err)
+		}
+		fmt.Printf("dodalo %d.\n", i+1)
 	}
 
-	if err := InsertProduct(db, product); err != nil {
-		log.Fatal("Insert failed:", err)
-	}
-
-	fmt.Println("✅ Product inserted!")
+	// if err := DeleteProductByID(db, 1); err != nil {
+	// 	log.Fatalf("nie dodalo: %v", err)
+	// }
+	// fmt.Println("wyjebane.")
 }

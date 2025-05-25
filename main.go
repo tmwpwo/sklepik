@@ -48,6 +48,69 @@ func initDB() (*Database, error) {
 	return &Database{db}, nil
 }
 
+func ensureTokenCookie() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		_, err := c.Request.Cookie("token")
+		if err != nil {
+			http.SetCookie(c.Writer, &http.Cookie{
+				Name:     "token",
+				Value:    "",
+				Path:     "/",
+				MaxAge:   3600,
+				HttpOnly: true,
+				SameSite: http.SameSiteLaxMode,
+			})
+		}
+		c.Next()
+	}
+}
+
+var tokenToProductIDs = map[string][]int{
+	"abc123": {2, 3, 5},
+}
+
+func specialProdukty(db *Database) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		tokenCookie, err := c.Request.Cookie("token")
+		if err != nil || tokenCookie.Value == "" {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Token required"})
+			return
+		}
+
+		ids, ok := tokenToProductIDs[tokenCookie.Value]
+		if !ok {
+			c.JSON(http.StatusForbidden, gin.H{"error": "Invalid token"})
+			return
+		}
+
+		var placeholders []string
+		var args []any
+		for _, id := range ids {
+			placeholders = append(placeholders, "?")
+			args = append(args, id)
+		}
+
+		query := fmt.Sprintf("SELECT id, nazwa, opis, cena, zdj, kategoria FROM produkty WHERE id IN (%s)", strings.Join(placeholders, ","))
+		rows, err := db.Query(query, args...)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Database query failed"})
+			return
+		}
+		defer rows.Close()
+
+		var products []Product
+		for rows.Next() {
+			var p Product
+			if err := rows.Scan(&p.ID, &p.Nazwa, &p.Opis, &p.Cena, &p.Zdjecie, &p.Kategoria); err != nil {
+				continue
+			}
+			products = append(products, p)
+		}
+
+		c.JSON(http.StatusOK, gin.H{"special": products})
+	}
+}
+
 func getProdukty(db *Database) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		id := c.Param("id")
@@ -159,7 +222,7 @@ func viewCartHandler(db *Database) gin.HandlerFunc {
 				}
 				id, _ := strconv.Atoi(parts[0])
 				qty, _ := strconv.Atoi(parts[1])
-				if id > 0 && qty > 0 {
+				if id > 0 {
 					cart[id] = qty
 				}
 			}
@@ -214,6 +277,8 @@ func main() {
 	}
 	defer db.Close()
 	r := gin.Default()
+
+	r.Use(ensureTokenCookie())
 	r.Use(cors.New(cors.Config{
 		AllowOrigins:     []string{"http://localhost:3000", "http://localhost:3001"},
 		AllowMethods:     []string{"GET", "POST", "OPTIONS", "DELETE", "PUT"},
@@ -225,5 +290,7 @@ func main() {
 	r.GET("/kategoria/:kategoria", getProduktyByKategoria(db))
 	r.POST("/koszyk", addToCartHandler())
 	r.GET("/koszyk", viewCartHandler(db))
+	r.GET("/special", specialProdukty(db))
+
 	r.Run()
 }
