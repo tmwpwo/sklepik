@@ -65,33 +65,30 @@ func ensureTokenCookie() gin.HandlerFunc {
 	}
 }
 
-var tokenToProductIDs = map[string][]int{
-	"abc123": {2, 3, 5},
+var tokenToCategory = map[string]string{
+	"abc123": "special",
 }
 
 func specialProdukty(db *Database) gin.HandlerFunc {
 	return func(c *gin.Context) {
+
 		tokenCookie, err := c.Request.Cookie("token")
 		if err != nil || tokenCookie.Value == "" {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "Token required"})
 			return
 		}
 
-		ids, ok := tokenToProductIDs[tokenCookie.Value]
+		category, ok := tokenToCategory[tokenCookie.Value]
 		if !ok {
 			c.JSON(http.StatusForbidden, gin.H{"error": "Invalid token"})
 			return
 		}
 
-		var placeholders []string
-		var args []any
-		for _, id := range ids {
-			placeholders = append(placeholders, "?")
-			args = append(args, id)
-		}
-
-		query := fmt.Sprintf("SELECT id, nazwa, opis, cena, zdj, kategoria FROM produkty WHERE id IN (%s)", strings.Join(placeholders, ","))
-		rows, err := db.Query(query, args...)
+		rows, err := db.Query(`
+			SELECT id, nazwa, opis, cena, zdj, kategoria
+			FROM produkty
+			WHERE kategoria = ?
+		`, category)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Database query failed"})
 			return
