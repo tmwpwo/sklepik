@@ -66,7 +66,7 @@ func ensureTokenCookie() gin.HandlerFunc {
 }
 
 var tokenToCategory = map[string]string{
-	"abc123": "special",
+	"1XaPq2LrNzV3KeWm4BcUy5DjHs": "special",
 }
 
 func specialProdukty(db *Database) gin.HandlerFunc {
