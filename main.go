@@ -54,7 +54,7 @@ func ensureTokenCookie() gin.HandlerFunc {
 		if err != nil {
 			http.SetCookie(c.Writer, &http.Cookie{
 				Name:     "token",
-				Value:    "",
+				Value:    "1*****2LrNzV3*****4*****5*****",
 				Path:     "/",
 				MaxAge:   3600,
 				HttpOnly: true,
